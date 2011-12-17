@@ -9,7 +9,6 @@ def setUp(test):
 
 def test_suite():
     return doctest.DocFileSuite(
-        'boolean.txt',
         'README.txt',
         setUp=setUp,
         tearDown=zc.buildout.testing.buildoutTearDown,

@@ -9,18 +9,14 @@ class FileTemplate(object):
     defaults = dict(
         marker='$',
         source='',
-        destination='bin',
+        destination='.',
         suffix='.in',
-        executable=True,
         )
 
     def __init__(self, buildout, name, options):
         self.buildout = buildout
         self.name = name
         self.options = options
-
-    def install(self):
-        root = self.buildout['buildout']['directory']
         source = self.options.get(
             'source-directory', self.defaults['source']
             ).strip('/').replace('../', '')
@@ -28,26 +24,40 @@ class FileTemplate(object):
             'destination-directory', self.defaults['destination']
             ).strip('/').replace('../', '')
         suffix = self.options.get('suffix', self.defaults['suffix'])
+        options['destination-directory'] = destination
+        options['source-directory'] = source
+        options['suffix'] = suffix
+        self.results = {}
+        # We have to cook the results early to ensure references to
+        # other parts from within the template are recognized as
+        # dependencies.  Since we always generate the files, updates to
+        # keys from non-part sections are handled correctly as well.
+        self.cook()
 
-        files = self.options.get('files', '').split()
+    def cook(self):
+        options = self.options
+        root = self.buildout['buildout']['directory']
+        files = options['files'].split()
+
         for name in files:
-            path = os.path.join(root, source, name) + suffix
+            path = os.path.join(
+                root, options['source-directory'], name) + options['suffix']
             text = open(path).read().strip()
             o = zc.buildout.buildout.Options(
                 self.buildout, self.name, dict(text=self.decorate(text)))
             o._initialize()
-            self.options[name + '-text'] = self.undecorate(o['text'])
-            path = os.path.join(root, destination, name)
-            # XXX: Ask Jim if it's necessary to record every single path part
-            # in options.created.  If not, this condition should suffice.
-            # if not os.path.exists(os.path.dirname(path)):
+            text = self.undecorate(o['text'])
+            path = os.path.join(root, options['destination-directory'], name)
+            self.results[path] = text
+
+    def install(self):
+        for path, text in self.results.items():
             missing = missing_paths(path)
             if missing:
                 os.makedirs(os.path.dirname(path))
             out = open(path, 'w')
-            out.write(self.options[name + '-text'])
+            out.write(text)
             out.close()
-            self.set_permissions(path)
             # self.options.created(path)
             self.options.created(path, *missing)
 
@@ -85,30 +95,35 @@ class FileTemplate(object):
     def undecorate(self, text):
         return re.sub('@DOLLAR@', lambda x: '$', text)
 
-    def set_permissions(self, path):
-        executable = boolean(
-            self.options.get('execute-mode', self.defaults['executable']))
-        if executable:
-            mode = stat.S_IMODE(os.stat(path).st_mode)
-            mode |= stat.S_IXUSR
-            if mode & stat.S_IRGRP:
-                mode |= stat.S_IXGRP
-            if mode & stat.S_IROTH:
-                mode |= stat.S_IXOTH
-            os.chmod(path, mode)
 
+class ScriptTemplate(FileTemplate):
 
-_booleans = {
-    'yes': True, 'true': True, 'on': True, '1': True,
-    'no': False, 'false': False, 'off': False, '0': False,
-    }
+    def __init__(self, buildout, name, options):
+        if 'destination-directory' not in options:
+            # Use the buildout's bin-directory, relative to the buildout:
+            bin_directory = buildout['buildout']['bin-directory']
+            buildout_directory = buildout['buildout']['directory']
+            bin_directory = bin_directory[len(buildout_directory):]
+            if bin_directory[0] in r'\/':
+                bin_directory = bin_directory[1:]
+            options['destination-directory'] = bin_directory
+        super(ScriptTemplate, self).__init__(buildout, name, options)
 
+    def install(self):
+        created = super(ScriptTemplate, self).install()
+        for path in self.results:
+            self.set_executable(path)
+        return created
 
-def boolean(setting):
-    try:
-        return _booleans[str(setting).lower()]
-    except KeyError:
-        raise ValueError('Invalid Boolean setting: %r' % (setting,))
+    def set_executable(self, path):
+        mode = stat.S_IMODE(os.stat(path).st_mode)
+        mode |= stat.S_IXUSR
+        if mode & stat.S_IRGRP:
+            mode |= stat.S_IXGRP
+        if mode & stat.S_IROTH:
+            mode |= stat.S_IXOTH
+        os.chmod(path, mode)
+
 
 def missing_paths(path):
     p = os.path.dirname(path)

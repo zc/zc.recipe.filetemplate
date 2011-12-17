@@ -29,6 +29,7 @@ tests_require = [
 entry_points = """
 [zc.buildout]
 default = zc.recipe.filetemplate:FileTemplate
+script = zc.recipe.filetemplate:ScriptTemplate
 """
 
 

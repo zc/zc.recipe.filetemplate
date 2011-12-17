@@ -22,7 +22,7 @@ The corresponding buildout configuration is very simple as well.
     ... parts = clean
     ...
     ... [clean]
-    ... recipe = zc.recipe.filetemplate
+    ... recipe = zc.recipe.filetemplate:script
     ... files = clean
     ... """
 
@@ -63,3 +63,104 @@ The script is executable and registered by buildout as installed.
 7. Show that different options work.
 8. Show that the file is executable.
 9. Run the script after creation! Separate recipe?
+
+
+Tracking template-based dependencies
+====================================
+
+Since the templates can refer to sections of the buildout configuration
+which are not mentioned in the part, the constructor has to ensure these
+dependencies are recorded.  Let's start with a template that depends on
+settings from another part:
+
+    >>> write('one.ini.in', """\
+    ... [section]
+    ... first = ${two.ini:setting}
+    ... second = ${section:setting}
+    ... """)
+
+    >>> write('two.ini.in', """\
+    ... [section]
+    ... key = ${:setting}
+    ... """)
+
+The corresponding buildout configuration is very simple as well:
+
+    >>> configuration = """\
+    ... [buildout]
+    ... parts = one.ini
+    ...
+    ... [one.ini]
+    ... recipe = zc.recipe.filetemplate
+    ... files = one.ini
+    ...
+    ... [two.ini]
+    ... recipe = zc.recipe.filetemplate
+    ... files = two.ini
+    ... setting = MY-SETTING
+    ...
+    ... [section]
+    ... setting = NOT-IN-A-PART
+    ... """
+
+Let's build this:
+
+    >>> build(src=configuration, show=True)
+    Uninstalling clean.
+    Installing two.ini.
+    Installing one.ini.
+
+    >>> ls('.')
+    -  .installed.cfg
+    d  bin
+    -  buildout.cfg
+    -  clean.in
+    d  develop-eggs
+    d  eggs
+    -  one.ini
+    -  one.ini.in
+    d  parts
+    -  two.ini
+    -  two.ini.in
+
+    >>> ls('bin')
+    -  buildout
+
+    >>> cat('one.ini')
+    [section]
+    first = MY-SETTING
+    second = NOT-IN-A-PART
+
+    >>> cat('two.ini')
+    [section]
+    key = MY-SETTING
+
+Note that one of the settings referenced from one.ini.in isn't in a
+part, but in a simple section.  Let's change that and make sure one.ini
+is correctly updated:
+
+    >>> configuration = """\
+    ... [buildout]
+    ... parts = one.ini
+    ...
+    ... [one.ini]
+    ... recipe = zc.recipe.filetemplate
+    ... files = one.ini
+    ...
+    ... [two.ini]
+    ... recipe = zc.recipe.filetemplate
+    ... files = two.ini
+    ... setting = MY-SETTING
+    ...
+    ... [section]
+    ... setting = REALLY-NOT-IN-A-PART
+    ... """
+
+    >>> build(src=configuration, show=True)
+    Updating two.ini.
+    Updating one.ini.
+
+    >>> cat('one.ini')
+    [section]
+    first = MY-SETTING
+    second = REALLY-NOT-IN-A-PART
