@@ -63,6 +63,9 @@ The script is executable and registered by buildout as installed.
 7. Show that different options work.
 8. Show that the file is executable.
 9. Run the script after creation! Separate recipe?
+     -- This could be done using an existing recipe that runs the script
+        generated using this; no need for this recipe to grow that
+        functionality.
 
 
 Tracking template-based dependencies
