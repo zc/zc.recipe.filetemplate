@@ -9,9 +9,10 @@ class FileTemplate(object):
     defaults = dict(
         marker='$',
         source='',
-        destination='.',
         suffix='.in',
         )
+
+    default_desination_key = 'directory'
 
     def __init__(self, buildout, name, options):
         self.buildout = buildout
@@ -19,10 +20,14 @@ class FileTemplate(object):
         self.options = options
         source = self.options.get(
             'source-directory', self.defaults['source']
-            ).strip('/').replace('../', '')
-        destination = self.options.get(
-            'destination-directory', self.defaults['destination']
-            ).strip('/').replace('../', '')
+            )
+        destination = self.options.get('destination-directory')
+        if not destination:
+            dep = deployment(buildout, options)
+            if dep:
+                destination = dep['etc-directory']
+            else:
+                destination = buildout['buildout'][self.default_desination_key]
         suffix = self.options.get('suffix', self.defaults['suffix'])
         options['destination-directory'] = destination
         options['source-directory'] = source
@@ -32,22 +37,18 @@ class FileTemplate(object):
         # other parts from within the template are recognized as
         # dependencies.  Since we always generate the files, updates to
         # keys from non-part sections are handled correctly as well.
-        self.cook()
-
-    def cook(self):
         options = self.options
         root = self.buildout['buildout']['directory']
         files = options['files'].split()
 
         for name in files:
-            path = os.path.join(
-                root, options['source-directory'], name) + options['suffix']
+            path = os.path.join(root, source, name) + suffix
             text = open(path).read().strip()
             o = zc.buildout.buildout.Options(
                 self.buildout, self.name, dict(text=self.decorate(text)))
             o._initialize()
             text = self.undecorate(o['text'])
-            path = os.path.join(root, options['destination-directory'], name)
+            path = os.path.join(root, destination, name)
             self.results[path] = text
 
     def install(self):
@@ -58,7 +59,6 @@ class FileTemplate(object):
             out = open(path, 'w')
             out.write(text)
             out.close()
-            # self.options.created(path)
             self.options.created(path, *missing)
 
         return self.options.created()
@@ -98,16 +98,7 @@ class FileTemplate(object):
 
 class ScriptTemplate(FileTemplate):
 
-    def __init__(self, buildout, name, options):
-        if 'destination-directory' not in options:
-            # Use the buildout's bin-directory, relative to the buildout:
-            bin_directory = buildout['buildout']['bin-directory']
-            buildout_directory = buildout['buildout']['directory']
-            bin_directory = bin_directory[len(buildout_directory):]
-            if bin_directory[0] in r'\/':
-                bin_directory = bin_directory[1:]
-            options['destination-directory'] = bin_directory
-        super(ScriptTemplate, self).__init__(buildout, name, options)
+    default_desination_key = 'bin-directory'
 
     def install(self):
         created = super(ScriptTemplate, self).install()
@@ -125,8 +116,16 @@ class ScriptTemplate(FileTemplate):
         os.chmod(path, mode)
 
 
+def deployment(buildout, options):
+    depname = options.get('deployment')
+    if depname:
+        return buildout[depname]
+    else:
+        return None
+
+
 def missing_paths(path):
     p = os.path.dirname(path)
     if os.path.exists(p):
         return []
-    return (missing_paths(p)).insert(0, p)
+    return [p] + missing_paths(p)

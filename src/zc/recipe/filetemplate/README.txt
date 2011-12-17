@@ -167,3 +167,61 @@ is correctly updated:
     [section]
     first = MY-SETTING
     second = REALLY-NOT-IN-A-PART
+
+
+Controlling destination using deployments
+=========================================
+
+When using a deployment configuration, the default destinations differ
+from those described above: the deployment's 'etc-directory' setting is
+used instead of the buildout 'directory' or 'bin-directory' settings.
+
+Let's try this with the basic file template recipe first:
+
+    >>> configuration = """\
+    ... [buildout]
+    ... parts = somefile.ext
+    ...
+    ... [deployment]
+    ... etc-directory = ${buildout:parts-directory}
+    ...
+    ... [somefile.ext]
+    ... recipe = zc.recipe.filetemplate
+    ... deployment = deployment
+    ... files = somefile.ext
+    ... """
+
+    >>> write('somefile.ext.in', """\
+    ... I live in ${somefile.ext:destination-directory}.
+    ... """)
+
+    >>> build(src=configuration, show=True)
+    Uninstalling one.ini.
+    Uninstalling two.ini.
+    Installing somefile.ext.
+
+    >>> cat('parts', 'somefile.ext')
+    I live in /sample-buildout/parts.
+
+The script recipe also uses the deployment's etc-directory if the
+deployment is specified:
+
+    >>> configuration = """\
+    ... [buildout]
+    ... parts = somefile.ext
+    ...
+    ... [deployment]
+    ... etc-directory = ${buildout:parts-directory}
+    ...
+    ... [somefile.ext]
+    ... recipe = zc.recipe.filetemplate:script
+    ... deployment = deployment
+    ... files = somefile.ext
+    ... """
+
+    >>> build(src=configuration, show=True)
+    Uninstalling somefile.ext.
+    Installing somefile.ext.
+
+    >>> cat('parts', 'somefile.ext')
+    I live in /sample-buildout/parts.
