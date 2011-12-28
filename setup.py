@@ -35,7 +35,7 @@ script = zc.recipe.filetemplate:ScriptTemplate
 
 setup(
     name='zc.recipe.filetemplate',
-    version='0',
+    version='0.1.0',
     author='Zvezdan Petkovic',
     author_email='zvezdan@zope.com',
     description=__doc__,
