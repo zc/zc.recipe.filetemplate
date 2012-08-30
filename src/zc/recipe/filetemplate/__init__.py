@@ -1,4 +1,6 @@
+import grp
 import os
+import pwd
 import re
 import stat
 import zc.buildout.buildout
@@ -52,6 +54,12 @@ class FileTemplate(object):
             self.results[path] = text
 
     def install(self):
+        user = self.options.get("user")
+        group = self.options.get("group")
+        if user:
+            user = pwd.getpwnam(user).pwd_uid
+        if group:
+            group = grp.getgrnam(group).gr_gid
         for path, text in self.results.items():
             missing = missing_paths(path)
             if missing:
@@ -59,6 +67,8 @@ class FileTemplate(object):
             out = open(path, 'w')
             out.write(text)
             out.close()
+            if user or group:
+                os.chown(path, user or -1, group or -1)
             self.options.created(path, *missing)
 
         return self.options.created()

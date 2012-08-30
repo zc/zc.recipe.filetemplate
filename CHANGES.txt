@@ -2,6 +2,11 @@
 CHANGES
 =======
 
+0.2.0 (2012-09-30)
+==================
+
+- Add user/group options to allow chowning generated files.
+
 0.1.0 (2011-12-28)
 ==================
 
